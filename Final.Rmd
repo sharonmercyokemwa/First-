@@ -1,0 +1,140 @@
+---
+title: "Final project update"
+author: "SHARON"
+date: "2023-08-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+A <- read.csv("C:/Users/PC/Downloads/copd raw dataset.csv")
+B <- A[1:100, c(3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19)]
+cor_matrix<-cor(B)
+cor_matrix
+library(corrplot)
+library(RColorBrewer)
+corrplot(cor_matrix, method = "color")
+```
+
+```{r}
+B$HAD[B$HAD >=22] <- NA
+C<- B[!is.na(B$HAD), ] ##subsetting to remove missing observation in HAD 
+C<- C[, c(3, 9, 10, 12, 13)]
+MWT1Best<- C$MWT1Best
+SGRQ <- C$SGRQ
+HAD<- C$HAD
+smoking<- as.factor(C$smoking)
+copd<- as.factor(C$copd)
+head(C)
+quant<- C[, c(1, 2, 3)] ##subsetting quantitative variables for plotting
+plot(quant)
+cor(C) ##correlation matrix
+nrow(C)
+```
+
+```{r}
+##exploratory data analysis
+
+SGRQ<- C$SGRQ
+hist(SGRQ, # histogram
+     col="steelblue", # column color
+     border="black",
+     prob = TRUE, # show densities instead of frequencies
+     xlab = "SGRQ",
+     breaks = 20,
+     main = "Histogram of quality of life scores")
+lines(density(SGRQ), # density plot
+      lwd = 2, # thickness of line
+      col = "chocolate3")
+```
+
+```{R}
+table(C$copd)
+table(C$smoking)
+library(psych)
+describe(C$HAD)
+describe(C$MWT1Best)
+describe(C$SGRQ)
+```
+
+```{R}
+##variable selection
+library(bestglm)
+##creating new dataframe
+D<- data.frame(MWT1Best=C$MWT1Best, HAD=C$HAD, copd=C$copd, smoking= C$smoking, SGRQ=C$SGRQ)
+bestglm(D, IC = "AIC", method = "forward")
+bestglm(D, IC = "AIC", method = "backward")
+bestglm(D, IC = "AIC", method = "exhaustive")
+
+models <- regsubsets(C$SGRQ~., data = C, nvmax = 4)
+summary(models)
+
+
+res.sum <- summary(models)
+data.frame(
+  Adj.R2 = which.max(res.sum$adjr2),
+  CP = which.min(res.sum$cp),
+  BIC = which.min(res.sum$bic))
+
+```
+
+```{r}
+lm<- lm(C$SGRQ~C$MWT1Best+C$HAD)
+summary(lm)
+library(MASS)
+rs1<- studres(lm)
+plot(rs1~fitted(lm))
+abline(h=0)
+library(lmtest)
+bptest(lm)
+ks.test(rs1,"pnorm")
+summary(lm)
+```
+
+```{r}
+set.seed(123)
+
+ntest<- 50
+rpmse_m<-numeric(ntest)
+cvg_m <- numeric(ntest)
+for (i in 1:ntest) {
+  
+  index <- sample(1:89, 20, replace = FALSE)
+  testy <- SGRQ[index]; trainy <- SGRQ[-index]
+  testHAD <- HAD[index]; trainHAD <- HAD[-index]
+  testMWT1B <- MWT1Best[index]; trainMWT1B <- MWT1Best[-index]
+  
+  lm1<- lm(trainy~ trainHAD+trainMWT1B)
+  
+  pred1<- predict(lm1, data.frame(trainHAD=testHAD, trainMWT1B= testMWT1B), interval = "prediction")
+ 
+  
+  
+  rpmse_m[i]<- sqrt(mean((pred1[,1]-testy)^2))
+
+  
+  cvg_m[i] <- mean(pred1[,2] < testy & pred1[,3] > testy)
+
+  
+}
+
+mean(rpmse_m)
+mean(cvg_m)
+pred1
+
+
+```
+```{r}
+confint(lm)
+```
+
+
+
+
+
+
+
